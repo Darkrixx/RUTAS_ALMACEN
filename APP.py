@@ -27,26 +27,23 @@ def connect():
     return uid, models
 
 
-def get_no_autoplan_partners(models, uid):
-    """Devuelve partners que NO tienen la etiqueta 'Autoplan' (incluye los que tienen 'RUTA' en método de envío)"""
-    print("🔍 Buscando partners que NO tienen la etiqueta 'Autoplan' (incluyendo los de RUTA)...")
-    # Obtener partners con etiqueta Autoplan
-    autoplan_partners = models.execute_kw(DB, uid, PWD,
-        'res.partner', 'search', [[('category_id.name', 'ilike', 'Autoplan')]])
-    # Obtener todos los partners
-    all_partners = models.execute_kw(DB, uid, PWD,
-        'res.partner', 'search', [[]])
-    # Leer los datos de todos los partners
-    all_partners_data = models.execute_kw(DB, uid, PWD,
-        'res.partner', 'read', [all_partners], {'fields': ['id', 'name', 'complete_name', 'category_id', 'property_delivery_carrier_id']})
-    # Filtrar: solo los que NO están en autoplan_partners Y NO contienen 'Mercadona' en complete_name
-    autoplan_set = set(autoplan_partners)
-    partners_filtrados = [
-        p for p in all_partners_data
-        if p['id'] not in autoplan_set
-        and 'mercadona' not in p.get('complete_name', '').lower()
+def get_no_autoplan_ruta_partners(models, uid):
+    """Devuelve partners que NO tienen la etiqueta 'Autoplan' y SÍ tienen 'RUTA' en método de envío"""
+    print("🔍 Buscando partners que NO tienen la etiqueta 'Autoplan' y SÍ tienen 'RUTA' en método de envío...")
+    domain = [
+        ('category_id.name', 'not ilike', 'Autoplan'),
+        ('property_delivery_carrier_id.name', 'ilike', 'RUTA')
     ]
-    print(f"✅ Encontrados {len(partners_filtrados)} partners que NO tienen la etiqueta 'Autoplan'")
+    partner_ids = models.execute_kw(DB, uid, PWD,
+        'res.partner', 'search', [domain])
+    partners = models.execute_kw(DB, uid, PWD,
+        'res.partner', 'read', [partner_ids], {'fields': ['id', 'name', 'complete_name', 'category_id', 'property_delivery_carrier_id']})
+    # Filtrar los que no contienen 'mercadona' en complete_name
+    partners_filtrados = [
+        p for p in partners
+        if 'mercadona' not in p.get('complete_name', '').lower()
+    ]
+    print(f"✅ Encontrados {len(partners_filtrados)} partners que NO tienen la etiqueta 'Autoplan' y SÍ tienen 'RUTA' en método de envío")
     return partners_filtrados
 
 
@@ -176,7 +173,7 @@ def check_package_stock_batch(models, uid, package_ids):
 def pedidos_nacional():
     try:
         uid, models = connect()
-        partners = get_no_autoplan_partners(models, uid)
+        partners = get_no_autoplan_ruta_partners(models, uid)
         partner_ids = [p['id'] for p in partners]
         partner_dict = {p['id']: p['name'] for p in partners}
         orders = get_pending_orders(models, uid, partner_ids)
@@ -333,7 +330,7 @@ def main():
     uid, models = connect()
 
     # Obtener SOLO partners SIN etiqueta AutoplanES
-    partners = get_no_autoplan_partners(models, uid)
+    partners = get_no_autoplan_ruta_partners(models, uid)
     partner_ids = [p['id'] for p in partners]
     partner_dict = {p['id']: p['name'] for p in partners}
     
